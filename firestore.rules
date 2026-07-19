@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidSessionCreate(data) {
+      return data.keys().hasAll(['id', 'type', 'title', 'inputText', 'outputText', 'messages', 'lastUpdated'])
+        && (data.keys().size() == 7 || data.keys().size() == 8)
+        && data.id is string
+        && data.type is string
+        && data.title is string
+        && data.inputText is string
+        && data.outputText is string
+        && data.messages is list
+        && data.messages.size() <= 100
+        && (!data.keys().hasAny(['history']) || (data.history is list && data.history.size() <= 100))
+        && data.lastUpdated is string;
+    }
+
+    function isValidSessionUpdate(data) {
+       return data.id is string
+        && data.type is string
+        && data.title is string
+        && data.inputText is string
+        && data.outputText is string
+        && data.messages is list
+        && data.messages.size() <= 100
+        && (!data.keys().hasAny(['history']) || (data.history is list && data.history.size() <= 100))
+        && data.lastUpdated is string;
+    }
+
+
+    match /users/{userId}/sessions/{sessionId} {
+      allow read: if isOwner(userId);
+      allow delete: if isOwner(userId) && isValidId(sessionId);
+      allow create: if isOwner(userId) 
+        && isValidId(sessionId)
+        && isValidSessionCreate(incoming());
+      
+      allow update: if isOwner(userId)
+        && isValidId(sessionId)
+        && isValidSessionUpdate(incoming())
+        && (
+            incoming().diff(existing()).affectedKeys().hasOnly(['title', 'inputText', 'outputText', 'messages', 'history', 'lastUpdated'])
+        );
+    }
+  }
+}
