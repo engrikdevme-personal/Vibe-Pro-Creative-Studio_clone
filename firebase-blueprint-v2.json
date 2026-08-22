@@ -1,0 +1,72 @@
+{
+  "description": "Firestore data model - Optimized for offline persistence and atomic writes",
+  "entities": {
+    "UserSession": {
+      "title": "UserSession (Parent Document)",
+      "description": "Session metadata - lightweight, fast reads",
+      "path": "/users/{userId}/sessions/{sessionId}",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique session identifier" },
+        "type": { "type": "string", "enum": ["creative", "chat", "nexus", "prompt_studio"], "description": "Session type/module" },
+        "title": { "type": "string", "description": "User-friendly session title" },
+        "inputText": { "type": "string", "description": "Current input/context" },
+        "outputText": { "type": "string", "description": "Current generated output" },
+        "messageCount": { "type": "integer", "description": "Denormalized count for quick stats" },
+        "historyCount": { "type": "integer", "description": "Denormalized count for quick stats" },
+        "createdAt": { "type": "timestamp", "description": "Server-side creation timestamp" },
+        "lastUpdated": { "type": "timestamp", "description": "Server-side last update timestamp" }
+      },
+      "required": ["id", "type", "title", "createdAt", "lastUpdated"]
+    },
+    "Message": {
+      "title": "Message (Sub-collection Document)",
+      "description": "Individual chat messages - one write per message, no array overwrites",
+      "path": "/users/{userId}/sessions/{sessionId}/messages/{messageId}",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["user", "model"], "description": "Sender role" },
+        "text": { "type": "string", "description": "Message content" },
+        "createdAt": { "type": "timestamp", "description": "Server-side message timestamp" },
+        "updatedAt": { "type": "timestamp", "description": "Last update timestamp" }
+      },
+      "required": ["role", "text", "createdAt"],
+      "indexes": ["createdAt"]
+    },
+    "HistoryEntry": {
+      "title": "HistoryEntry (Sub-collection Document)",
+      "description": "Editing snapshots/checkpoints - one write per entry, no array rewrites",
+      "path": "/users/{userId}/sessions/{sessionId}/history/{entryId}",
+      "type": "object",
+      "properties": {
+        "label": { "type": "string", "description": "Checkpoint label (e.g., 'Generate Story', 'Manual Save')" },
+        "inputText": { "type": "string", "description": "Input text at checkpoint" },
+        "outputText": { "type": "string", "description": "Output text at checkpoint" },
+        "createdAt": { "type": "timestamp", "description": "Server-side creation timestamp" },
+        "updatedAt": { "type": "timestamp", "description": "Last update timestamp" }
+      },
+      "required": ["label", "inputText", "outputText", "createdAt"],
+      "indexes": ["createdAt"]
+    }
+  },
+  "offline_persistence": {
+    "enabled": true,
+    "method": "persistentLocalCache()",
+    "sync_strategy": "automatic on reconnect",
+    "conflict_resolution": "server timestamp based",
+    "storage": "IndexedDB (automatic via Firestore SDK)"
+  },
+  "write_patterns": {
+    "session_metadata_update": "updateDoc() - only specified fields changed",
+    "message_add": "sub-collection setDoc() - atomic per message",
+    "history_add": "sub-collection setDoc() - atomic per entry",
+    "timestamp_source": "serverTimestamp() - server-side for ordering"
+  },
+  "benefits": {
+    "no_race_conditions": "Field-level updates prevent concurrent overwrites",
+    "no_size_limits": "Sub-collections keep documents < 1MB easily",
+    "automatic_offline": "Firestore SDK handles queuing and sync",
+    "cost_efficient": "Granular writes reduce unnecessary data transfer",
+    "conflict_free": "Server timestamps ensure consistent ordering"
+  }
+}
