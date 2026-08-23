@@ -1,18 +1,40 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut 
+} from 'firebase/auth';
+import { 
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  serverTimestamp,
+  Timestamp
+} from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
+// ✅ NATIVE OFFLINE PERSISTENCE ENABLED
+// Firestore automatically:
+// - Caches data locally in IndexedDB
+// - Queues writes when offline
+// - Syncs automatically when online
+// - Handles multi-tab synchronization
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
+
 export const signInWithGoogle = () => {
-    return signInWithPopup(auth, new GoogleAuthProvider());
+  return signInWithPopup(auth, new GoogleAuthProvider());
 };
 
 export const logOut = () => {
-    return signOut(auth);
+  return signOut(auth);
 };
 
 export enum OperationType {
@@ -61,3 +83,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
+
+// ✅ SERVER-SIDE TIMESTAMP UTILITY
+export const getServerTimestamp = () => serverTimestamp();
+
+// ✅ TIMESTAMP CONVERSION UTILITY
+export const toDate = (timestamp: any): Date => {
+  if (timestamp instanceof Timestamp) {
+    return timestamp.toDate();
+  }
+  return new Date(timestamp);
+};
